@@ -1,9 +1,10 @@
 import { settings, saveSettings, fmtDist, fmtElev, fmtGrade, fmtSpeed, esc, toast, compass } from './util.js';
-import { createSteepnessLayer, slopeRose, profileAhead } from './terrain.js';
+import { createSteepnessLayer, createContourLayer, createTintLayer, sampleGrid, findExtrema, slopeRose, profileAhead } from './terrain.js';
+import { createPavementLayers, PAVEMENT_LAYERS, scorePavement, GRADE_COLOR } from './pavement.js';
 import { fetchAlternatives, fetchRoute, analyze, gradeClass, CLASS_COLOR, CLASS_LABEL, STEP } from './routing.js';
 import { drawProfile, profileDistAt, drawRose, drawAhead, bestDownhill } from './charts.js';
 import { findParks } from './parks.js';
-import { suggestCruises } from './cruise.js';
+import { suggestCruises, findRunsInArea } from './cruise.js';
 import { Ride } from './nav.js';
 import { unlockAudio, play, describe } from './cues.js';
 import { openAR, closeAR, heading as compassHeading, requestOrientationPermission } from './ar.js';
@@ -26,7 +27,35 @@ const steepness = createSteepnessLayer(L);
 const parksLayer = L.layerGroup();
 const routeLayer = L.layerGroup().addTo(map);
 base[settings.base] ? base[settings.base].addTo(map) : base.Streets.addTo(map);
-L.control.layers(base, { 'Hillshade': hillshade, 'Terrain steepness': steepness, 'Skateparks': parksLayer }, { position: 'topright' }).addTo(map);
+const contours = createContourLayer(L, () => settings.units === 'imperial');
+const tint = createTintLayer(L);
+const extremaLayer = L.layerGroup();
+let lastStatus = '';
+const pave = createPavementLayers(L, map, (m) => { if (m !== lastStatus) toast((lastStatus = m)); });
+L.control.layers(base, {
+  'Hillshade': hillshade, 'Elevation shading (relative)': tint, 'Contour lines': contours, 'Hilltops & low points': extremaLayer,
+  'Terrain steepness': steepness, 'Skateparks': parksLayer,
+  ...Object.fromEntries(Object.entries(PAVEMENT_LAYERS).map(([k, name]) => [name, pave[k]])),
+}, { position: 'topright', collapsed: true }).addTo(map);
+
+// elevation range for the tint + hilltop/low-point markers, recomputed for each view
+let terrainTimer;
+async function refreshTerrainView() {
+  if (!map.hasLayer(tint) && !map.hasLayer(extremaLayer)) return;
+  const bb = map.getBounds(), z = map.getZoom();
+  const g = await sampleGrid({ s: bb.getSouth(), w: bb.getWest(), n: bb.getNorth(), e: bb.getEast() }, 28, 28, Math.min(14, Math.max(10, z - 2)));
+  const es = g.es.filter((e) => e != null);
+  if (!es.length) return;
+  tint.setRange([Math.min(...es), Math.max(...es)]);
+  extremaLayer.clearLayers();
+  if (!map.hasLayer(extremaLayer)) return;
+  const { tops, bottoms } = findExtrema(g, z >= 15 ? 3 : 5, 10);
+  const mk = (x, cls, sym, what) => L.marker(x.p, { icon: L.divIcon({ className: '', html: `<div class="${cls}">${sym}<span>${fmtElev(x.e)}</span></div>`, iconSize: [60, 22], iconAnchor: [9, 11] }) })
+    .bindPopup(`<b>${what}</b><br>${fmtElev(x.e)} · ${fmtElev(x.rel)} of relief nearby<br><button class="popup-from" data-lat="${x.p[0]}" data-lon="${x.p[1]}">Start a run here</button>`).addTo(extremaLayer);
+  tops.forEach((t) => mk(t, 'peak', '▲', 'Hilltop'));
+  bottoms.forEach((b) => mk(b, 'valley', '▼', 'Low point'));
+}
+map.on('moveend overlayadd', () => { clearTimeout(terrainTimer); terrainTimer = setTimeout(refreshTerrainView, 300); });
 map.on('baselayerchange', (e) => { settings.base = e.name; saveSettings(); });
 map.attributionControl.addAttribution('Routing: <a href="https://brouter.de">BRouter</a>');
 
@@ -175,6 +204,7 @@ function cardHTML(o, i) {
       <b>${esc(o.title)}</b> <span class="muted">· ${a.label}</span>
       <div class="meta">${fmtDist(a.dist)} · ↑${fmtElev(a.climb)} · ↓${fmtElev(a.descent)} · steepest ${fmtGrade(a.maxDownG)}</div>
       ${compBar(a)}
+      ${a.pave && a.pave.coverage > 0.2 ? `<div class="meta">Pavement: <span style="color:${GRADE_COLOR.A}">${Math.round(a.pave.good * 100)}% A/B</span> · <span style="color:${GRADE_COLOR.D}">${Math.round(a.pave.poor * 100)}% D/F</span></div>` : ''}
       ${a.flags.length ? `<div class="flags">${a.flags.map(esc).join(' · ')}</div>` : ''}
     </div></div>`;
 }
@@ -215,6 +245,7 @@ function selectOption(i, fit = true) {
   selected = i;
   const o = options[i];
   if (o.to) setTo(o.to, o.title);
+  if (o.area) setFrom(o.from);
   drawRoutes();
   document.querySelectorAll('.card').forEach((c) => c.classList.toggle('sel', +c.dataset.i === i));
   $('#plan-result').hidden = false;
@@ -232,8 +263,9 @@ async function planRoutes() {
   list.innerHTML = '<div class="loading">Finding smooth, low-climb routes…</div>';
   try {
     const routes = await fetchAlternatives(f, to, 3);
-    options = routes.map((route, i) => ({ route, a: analyze(route), title: `Route ${'ABC'[i]}` }))
-      .sort((x, y) => y.a.score - x.a.score);
+    options = routes.map((route, i) => ({ route, a: analyze(route), title: `Route ${'ABC'[i]}` }));
+    await scorePavement(options);
+    options.sort((x, y) => y.a.score - x.a.score);
     options.forEach((o, i) => (o.title = i === 0 ? 'Best ride' : `Alternative ${i}`));
     selected = 0;
     renderOptions(list);
@@ -258,15 +290,25 @@ prof.addEventListener('pointermove', (e) => {
 prof.addEventListener('pointerleave', () => { scrubMarker?.remove(); scrubMarker = null; });
 
 // ---------- cruise suggestions ----------
-$('#btn-cruise').onclick = async () => {
+async function runFinder(mode) {
   const f = from || me;
-  if (!f) return toast('Waiting for your location…');
+  if (mode === 'me' && !f) return toast('Waiting for your location…');
   const list = $('#cruise-list');
   list.innerHTML = '<div class="loading">Scouting terrain…</div>';
-  $('#btn-cruise').disabled = true;
+  document.querySelectorAll('.finder').forEach((b) => (b.disabled = true));
+  const progress = (m) => (list.innerHTML = `<div class="loading">${esc(m)}</div>`);
   try {
-    const res = await suggestCruises(f, +$('#cruise-len').value, parks, (m) => (list.innerHTML = `<div class="loading">${esc(m)}</div>`));
-    if (!res.length) throw new Error('No rideable cruises found nearby — try another length');
+    const len = +$('#cruise-len').value;
+    let res;
+    if (mode === 'view') {
+      if (map.getZoom() < 12) throw new Error('Zoom in a little (to a neighbourhood or two) so the search stays focused');
+      const bb = map.getBounds();
+      res = await findRunsInArea({ s: bb.getSouth(), w: bb.getWest(), n: bb.getNorth(), e: bb.getEast() }, len, parks, progress);
+      res.forEach((o) => (o.area = true));
+    } else {
+      res = await suggestCruises(f, len, parks, progress);
+    }
+    if (!res.length) throw new Error('No rideable runs found — try another length or area');
     options = res;
     selected = 0;
     setTo(null);
@@ -276,9 +318,11 @@ $('#btn-cruise').onclick = async () => {
   } catch (e) {
     list.innerHTML = `<div class="error">${esc(e.message)}</div>`;
   } finally {
-    $('#btn-cruise').disabled = false;
+    document.querySelectorAll('.finder').forEach((b) => (b.disabled = false));
   }
-};
+}
+$('#btn-cruise').onclick = () => runFinder('me');
+$('#btn-area').onclick = () => runFinder('view');
 $('#btn-cruise-plan').onclick = () => {
   const o = options[selected];
   if (!o) return;
@@ -315,6 +359,8 @@ function parkPopup(p) {
 map.on('popupopen', (e) => {
   const b = e.popup.getElement().querySelector('.popup-route');
   if (b) b.onclick = () => { map.closePopup(); setTo([+b.dataset.lat, +b.dataset.lon], b.dataset.name); planRoutes(); };
+  const f = e.popup.getElement().querySelector('.popup-from');
+  if (f) f.onclick = () => { map.closePopup(); setFrom([+f.dataset.lat, +f.dataset.lon]); showTab('cruise'); toast('Start point A set — tap “From me / point A” to find runs from here'); };
 });
 $('#park-list').onclick = (e) => {
   const i = e.target.closest('[data-i]')?.dataset.i;
@@ -363,6 +409,19 @@ async function startRide() {
   unlockAudio();
   await requestOrientationPermission();
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* not supported */ }
+  const start = [o.a.lat[0], o.a.lon[0]];
+  if (map.distance(me, start) > 150 && confirm(`This run starts ${fmtDist(map.distance(me, start))} away. Get directions to the start first?`)) {
+    try {
+      const r = await fetchRoute(me, start, 0);
+      const leg = { route: r, a: analyze(r), to: start, next: o };
+      L.polyline(r.pts.map((p) => [p.lat, p.lon]), { color: '#00e5ff', weight: 5, dashArray: '2 8' }).addTo(routeLayer);
+      return beginRide(leg);
+    } catch { toast('Could not route to the start — heading straight into the run'); }
+  }
+  beginRide(o);
+}
+
+function beginRide(o) {
   ride = new Ride(o.route, o.a, {
     onUpdate: (u) => {
       hud = u;
@@ -378,15 +437,18 @@ async function startRide() {
     },
     onReroute: async (p) => {
       try {
-        const r = await fetchRoute(p, to || o.to, 0);
+        const r = await fetchRoute(p, o.to || to, 0);
         const a = analyze(r);
         ride.replace(r, a);
-        options[selected] = { ...options[selected], route: r, a };
-        drawRoutes();
+        if (!o.next) { options[selected] = { ...options[selected], route: r, a }; drawRoutes(); }
         toast('New route ready');
       } catch { toast('Reroute failed — keep heading toward the destination'); }
     },
-    onArrive: () => { toast('Arrived! 🛹', 5000); stopRide(); },
+    onArrive: () => {
+      if (o.next) { toast('At the start — enjoy the run! 🛹', 5000); drawRoutes(); beginRide(o.next); return; }
+      toast('Arrived! 🛹', 5000);
+      stopRide();
+    },
   });
   document.body.classList.add('riding');
   $('#hud').hidden = false;
@@ -447,7 +509,8 @@ $('#settings-form').onchange = () => {
   settings.vibrate = $('#set-vibrate').checked;
   saveSettings();
   options.forEach((o) => (o.a = analyze(o.route)));
-  if (selected >= 0) { drawRoutes(); renderOptions($('#route-list')); selectOption(selected, false); }
+  contours.redraw();
+  scorePavement(options).finally(() => { if (selected >= 0) { drawRoutes(); renderOptions($('#route-list')); selectOption(selected, false); } });
 };
 if (!navigator.vibrate) $('#vibe-note').hidden = false;
 $('#cue-tests').onclick = (e) => {

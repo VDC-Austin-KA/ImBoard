@@ -57,6 +57,10 @@ body:has(#sheet.collapsed) .fabs { bottom: 120px; }
 
 .park { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .park b { color: var(--fg); } .park div { min-width: 0; }
+.peak, .valley { display: flex; align-items: center; gap: 3px; font-size: 14px; font-weight: 800; white-space: nowrap; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+.peak { color: #bf360c; } .valley { color: #0d47a1; }
+.peak span, .valley span { font-size: 11px; color: #263238; }
+.leaflet-control-layers-list { max-height: 60vh; overflow-y: auto; }
 .park-icon { font-size: 22px; filter: drop-shadow(0 1px 2px #000); }
 
 .here { display: flex; gap: 12px; align-items: center; }

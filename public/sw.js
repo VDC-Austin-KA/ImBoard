@@ -1,8 +1,8 @@
 // App-shell cache: same-origin files are served stale-while-revalidate; map tiles and APIs pass through.
-const CACHE = 'imboard-v1';
+const CACHE = 'imboard-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'longboard.brf', 'icon.svg', 'manifest.webmanifest',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
-  ...['main', 'util', 'terrain', 'routing', 'charts', 'cues', 'nav', 'ar', 'parks', 'cruise'].map((m) => `js/${m}.js`)];
+  ...['main', 'util', 'terrain', 'routing', 'charts', 'cues', 'nav', 'ar', 'parks', 'cruise', 'pavement'].map((m) => `js/${m}.js`)];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(

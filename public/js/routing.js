@@ -99,6 +99,8 @@ export function gradeClass(g, maxDown = settings.maxDown) {
 export const CLASS_COLOR = { steep: '#e74c3c', fast: '#f39c12', sweet: '#2ecc71', flat: '#3498db', mildup: '#9b59b6', climb: '#8e44ad' };
 export const CLASS_LABEL = { steep: 'Too steep ↓', fast: 'Fast ↓', sweet: 'Sweet-spot ↓', flat: 'Flat', mildup: 'Mild push ↑', climb: 'Climb ↑' };
 
+export const labelFor = (s) => (s >= 80 ? 'Butter cruise' : s >= 65 ? 'Smooth' : s >= 45 ? 'Mixed' : 'Pushy');
+
 export function analyze(route, maxDown = settings.maxDown) {
   const { pts, dist } = route;
   const n = Math.max(2, Math.floor(dist / STEP) + 1);
@@ -141,8 +143,7 @@ export function analyze(route, maxDown = settings.maxDown) {
   if (frac.climb > 0.12) flags.push('lots of pushing');
   if (route.busyFrac > 0.2) flags.push('busy roads');
   if (route.roughFrac > 0.1) flags.push('rough surface');
-  const label = score >= 80 ? 'Butter cruise' : score >= 65 ? 'Smooth' : score >= 45 ? 'Mixed' : 'Pushy';
-  return { n, lat, lon, ele, grades, frac, climb, descent, maxDownG, maxUpG, score, label, flags, dist };
+  return { n, lat, lon, ele, grades, frac, climb, descent, maxDownG, maxUpG, score, label: labelFor(score), flags, dist };
 }
 
 /** Grade at a distance along the analysed route. */

@@ -12,6 +12,14 @@ A mobile-first map app (installable PWA) for planning smooth, low-effort longboa
   average downhill, routes the best candidates and shows the top 3.
 - **Topography** — Topographic base map, Esri hillshade, and a client-side **terrain steepness** overlay
   computed from AWS Terrarium elevation tiles (green < 5 %, yellow < 8 %, orange < 12 %, red steeper).
+- **Contours, elevation shading & hilltops** — client-side contour lines (marching squares), a hillshaded
+  elevation tint scaled to the elevations in view, and ▲/▼ markers for local hilltops and low points.
+- **Area route finder** — "Best runs in this map view" starts from hilltops / high ground anywhere in the view
+  and finds the best downhill runs of the chosen length (short / medium / long). If you're not at the start,
+  ride mode first guides you there.
+- **Austin pavement intel** (City of Austin open ArcGIS data): street condition grades A–F, completed
+  overlays ("fresh asphalt") and seal coats with dates, and the FY27 resurfacing plan. Routes inside Austin are
+  re-scored by the pavement they ride on. Roads under construction come from OpenStreetMap everywhere.
 - **"Here" terrain profile** — elevation, a 16-direction slope rose and a 500 m profile ahead of your heading.
 - **Elevation profile** of each route, colour-coded by grade; drag across it to inspect any point on the map.
 - **Skateparks** from OpenStreetMap (Overpass), ranked by a popularity heuristic (named, wiki/website, lit, concrete…).
@@ -39,4 +47,4 @@ changes so installed PWAs pick them up.
 
 ## Data & credits
 © OpenStreetMap contributors · BRouter · OpenTopoMap · CyclOSM · Esri hillshade · Mapzen/AWS Terrain Tiles ·
-Nominatim search · Leaflet. All free/community services — please keep request volumes modest.
+Nominatim search · City of Austin Open Data (Transportation & Public Works) · Leaflet. All free/community services — please keep request volumes modest.
