@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>ImBoard — Longboard Route Planner</title>
+  <meta name="description" content="Plan smooth, low-climb longboard routes with terrain overlays, skateparks and eyes-free turn cues.">
+  <meta name="theme-color" content="#102027">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <form id="search" autocomplete="off">
+    <span class="brand">🛹 ImBoard</span>
+    <input id="q" type="search" placeholder="Search a destination…" aria-label="Search destination">
+    <ul id="search-results" hidden></ul>
+  </form>
+
+  <div class="fabs">
+    <button id="btn-locate" class="fab" title="My location" aria-label="My location">◎</button>
+    <button id="btn-ar" class="fab" title="AR heads-up view" aria-label="AR view">AR</button>
+  </div>
+
+  <section id="sheet">
+    <button id="sheet-handle" aria-label="Toggle panel"><span></span></button>
+    <nav class="tabs">
+      <button class="tab" data-tab="plan">Plan</button>
+      <button class="tab" data-tab="cruise">Cruise</button>
+      <button class="tab" data-tab="parks">Parks</button>
+      <button class="tab" data-tab="here">Here</button>
+      <button class="tab" data-tab="settings">⚙</button>
+    </nav>
+
+    <div id="panel-plan" class="panel">
+      <div class="ends">
+        <div><span class="pin-mini a">A</span> <span id="from-label">My location</span></div>
+        <div><span class="pin-mini b">B</span> <span id="to-label">Tap the map, search, or pick a skatepark</span></div>
+      </div>
+      <div class="row">
+        <button id="btn-route" class="primary">Find smooth routes</button>
+        <button id="btn-swap" title="Reverse direction">⇅</button>
+        <button id="btn-clear" title="Clear">✕</button>
+      </div>
+      <div id="route-list"></div>
+      <div id="plan-result" hidden>
+        <div id="plan-summary" class="muted"></div>
+        <canvas id="profile" class="chart"></canvas>
+        <div id="profile-readout" class="muted small">Drag across the profile to inspect the route</div>
+        <div class="legend">
+          <span style="--c:#2ecc71">Sweet-spot ↓</span><span style="--c:#3498db">Flat</span><span style="--c:#f39c12">Fast ↓</span>
+          <span style="--c:#e74c3c">Too steep ↓</span><span style="--c:#9b59b6">Push ↑</span>
+        </div>
+        <button id="btn-ride" class="primary wide">▶ Start ride (eyes-free cues)</button>
+      </div>
+    </div>
+
+    <div id="panel-cruise" class="panel" hidden>
+      <p class="muted">Finds gentle downhill rides from where you are: minimal pushing, no scary descents.</p>
+      <div class="row">
+        <select id="cruise-len" aria-label="Cruise length">
+          <option value="2000">Short (~2 km / 1.2 mi)</option>
+          <option value="4000" selected>Medium (~4 km / 2.5 mi)</option>
+          <option value="7000">Long (~7 km / 4.3 mi)</option>
+        </select>
+        <button id="btn-cruise" class="primary">Suggest cruises</button>
+      </div>
+      <div id="cruise-list"></div>
+      <div id="cruise-hint" class="row" hidden>
+        <button id="btn-cruise-ride" class="primary">▶ Ride selected</button>
+        <button id="btn-cruise-plan">Open in planner</button>
+      </div>
+    </div>
+
+    <div id="panel-parks" class="panel" hidden>
+      <div class="row">
+        <button id="btn-parks-near" class="primary">Near me</button>
+        <button id="btn-parks-area">In this map area</button>
+      </div>
+      <div id="park-list"></div>
+    </div>
+
+    <div id="panel-here" class="panel" hidden>
+      <div class="here">
+        <canvas id="rose" class="rose"></canvas>
+        <div id="here-stats">Waiting for location…</div>
+      </div>
+      <div id="ahead-title" class="muted small">Terrain ahead</div>
+      <canvas id="ahead" class="chart short"></canvas>
+      <button id="btn-here-refresh">↻ Refresh (uses compass heading)</button>
+    </div>
+
+    <div id="panel-settings" class="panel" hidden>
+      <form id="settings-form">
+        <label>Units <select id="set-units"><option value="imperial">Miles / feet</option><option value="metric">Kilometres / metres</option></select></label>
+        <label>Downhill comfort
+          <select id="set-maxdown">
+            <option value="0.05">Gentle — max 5%</option>
+            <option value="0.07">Moderate — max 7%</option>
+            <option value="0.1">Confident — max 10%</option>
+          </select></label>
+        <label class="check"><input type="checkbox" id="set-vibrate"> Vibration cues</label>
+        <label class="check"><input type="checkbox" id="set-voice"> Spoken prompts (in addition to chimes)</label>
+      </form>
+      <h4>Cue language — learn it once, keep eyes on the road</h4>
+      <ul class="cues">
+        <li><b>2 pulses</b> (left ear) = turn LEFT · <b>3 pulses</b> (right ear) = turn RIGHT</li>
+        <li>Short pulses = bear / keep · Long pulses = sharp turn · 4 = U-turn</li>
+        <li>1 long + N short = roundabout, take exit N</li>
+        <li>Soft single chime ≈ 12 s before · pattern ≈ 5 s before · long buzz = turn NOW</li>
+        <li>Rapid ticks = steep section ahead, check speed · Low drone = off route</li>
+      </ul>
+      <div id="cue-tests" class="row wrap">
+        <button data-test="left">Left</button><button data-test="right">Right</button><button data-test="slight">Bear right</button>
+        <button data-test="rbt">Roundabout</button><button data-test="now">Turn now</button><button data-test="steep">Steep</button>
+        <button data-test="offRoute">Off route</button><button data-test="arrive">Arrive</button>
+      </div>
+      <p id="vibe-note" class="muted small" hidden>This browser has no vibration support (e.g. iPhone Safari). Chimes work through headphones or speaker — stereo panning tells left from right.</p>
+      <p class="muted small">Ride responsibly: wear a helmet, obey traffic laws, and check routes yourself — map and elevation data can be wrong.</p>
+    </div>
+  </section>
+
+  <div id="hud" hidden>
+    <div class="hud-top">
+      <div id="hud-arrow">⬆</div>
+      <div><div id="hud-dist">—</div><div id="hud-instr"></div></div>
+    </div>
+    <div class="hud-bottom">
+      <div class="hud-stats"><span id="hud-grade">0%</span><span id="hud-speed">0</span><span id="hud-remain"></span></div>
+      <canvas id="hud-profile" class="chart short"></canvas>
+      <div class="row">
+        <button id="btn-hud-ar">AR view</button>
+        <button id="btn-pocket">Pocket mode</button>
+        <button id="btn-stop" class="danger">Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pocket" hidden><p>Pocket mode — cues stay active.<br>Hold anywhere for 1.5 s to unlock.</p></div>
+
+  <div id="ar" hidden>
+    <video autoplay playsinline muted></video>
+    <div class="ar-hud">
+      <div id="ar-label"></div>
+      <div id="ar-arrow" hidden>▲</div>
+      <div id="ar-info"></div>
+    </div>
+    <button id="ar-close" aria-label="Close AR">✕</button>
+  </div>
+
+  <div id="toast" hidden></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

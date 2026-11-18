@@ -1,1 +1,42 @@
-# ImBoard
+# ImBoard — longboard route planner
+
+Live at **https://board.ackerworks.com** (Cloudflare Worker `board`; `scripts/build-worker.mjs` bundles `public/` into the script).
+
+A mobile-first map app (installable PWA) for planning smooth, low-effort longboard rides.
+
+## Features
+- **Longboard-aware routing** — [BRouter](https://brouter.de) with a custom profile (`public/longboard.brf`) that
+  penalises climbing, steep descents, rough/unpaved surfaces and busy roads. Up to 3 alternatives are fetched
+  and ranked by a **ride score** (share of "sweet-spot" 1–5 % downhill vs. pushing and too-steep sections).
+- **Cruise suggestions** — scouts terrain in 12 directions (and nearby skateparks) for destinations with a gentle
+  average downhill, routes the best candidates and shows the top 3.
+- **Topography** — Topographic base map, Esri hillshade, and a client-side **terrain steepness** overlay
+  computed from AWS Terrarium elevation tiles (green < 5 %, yellow < 8 %, orange < 12 %, red steeper).
+- **"Here" terrain profile** — elevation, a 16-direction slope rose and a 500 m profile ahead of your heading.
+- **Elevation profile** of each route, colour-coded by grade; drag across it to inspect any point on the map.
+- **Skateparks** from OpenStreetMap (Overpass), ranked by a popularity heuristic (named, wiki/website, lit, concrete…).
+- **Eyes-free ride mode** — staged chime + vibration cues before each turn (2 pulses = left, 3 = right, panned to
+  that ear), "turn now" buzz, steep-section speed warnings, off-route detection with automatic reroute,
+  optional voice, screen wake-lock and a black **pocket mode**.
+- **AR heads-up view** — camera passthrough with a compass-locked arrow toward the route (or toward the
+  gentlest downhill when no route is active).
+
+> iPhone Safari has no Vibration API: cues play as stereo chimes (headphones recommended).
+
+## Develop
+No build step. Serve `public/` with any static server:
+```sh
+cd public && python3 -m http.server 8787
+```
+Geolocation, camera and compass need HTTPS (or `localhost`).
+
+## Deploy
+```sh
+node scripts/build-worker.mjs && npx wrangler deploy
+```
+`wrangler.toml` binds the custom domain `board.ackerworks.com`. Bump `CACHE` in `public/sw.js` when shipping
+changes so installed PWAs pick them up.
+
+## Data & credits
+© OpenStreetMap contributors · BRouter · OpenTopoMap · CyclOSM · Esri hillshade · Mapzen/AWS Terrain Tiles ·
+Nominatim search · Leaflet. All free/community services — please keep request volumes modest.
