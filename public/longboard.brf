@@ -1,0 +1,50 @@
+---context:global
+# ImBoard longboard profile: smooth pavement, gentle grades, low traffic.
+assign validForBikes = true
+assign processUnusedTags = false
+assign turnInstructionMode = 1
+# climbing is expensive (pushing a board uphill), mild descent is free,
+# steep descent (>~6%) is penalised for safety.
+assign downhillcost 60
+assign downhillcutoff 3.0
+assign uphillcost 120
+assign uphillcutoff 0.5
+assign elevationpenaltybuffer 5
+assign elevationmaxbuffer 10
+assign elevationbufferreduce 0.0
+assign turncost 30
+
+---context:way
+assign isPaved = surface=|asphalt|concrete|paved
+assign isRough = surface=paving_stones|sett|cobblestone|metal|wood
+assign isUnpaved = surface=unpaved|gravel|fine_gravel|compacted|dirt|earth|ground|grass|sand|mud|pebblestone|rock
+assign smoothOk = smoothness=|excellent|good|intermediate
+assign busy = highway=primary|primary_link|trunk|trunk_link
+assign medium = highway=secondary|secondary_link|tertiary|tertiary_link
+assign quiet = highway=residential|living_street|service|unclassified|road
+assign path = highway=cycleway|path|footway|pedestrian|track|bridleway
+assign blocked = or highway=motorway|motorway_link|steps|construction|proposed|platform
+               or access=private|no
+               or bicycle=no|dismount
+               or isUnpaved
+               or smoothness=bad|very_bad|horrible|very_horrible|impassable
+                  and path not or isPaved surface=paving_stones
+assign basecost = switch blocked 10000
+                  switch busy 4.0
+                  switch medium 1.6
+                  switch quiet 1.0
+                  switch highway=cycleway 0.85
+                  switch path 1.3
+                  switch highway=track 2.5 10000
+assign costfactor = add basecost
+                    add switch isRough 2.5 0
+                    add switch smoothOk 0 1.5
+                    add switch or cycleway=lane|track bicycle_road=yes -0.2 0
+                        switch maxspeed=70|80|90|100 2.0 0
+assign uphillcostfactor = costfactor
+assign downhillcostfactor = costfactor
+
+---context:node
+assign initialcost = switch barrier=gate|bollard|lift_gate|cycle_barrier|kissing_gate|stile 60
+                     switch highway=traffic_signals 20
+                     switch highway=stop 15 0
