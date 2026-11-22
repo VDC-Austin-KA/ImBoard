@@ -2,12 +2,17 @@
 import { settings, fetchWithTimeout, haversine, clamp } from './util.js';
 
 const BROUTER = 'https://brouter.de/brouter';
-let profileId = null;
+const profileIds = {}; // per skill level
 
 async function ensureProfile() {
-  if (profileId) return profileId;
+  const skill = settings.skill;
+  if (profileIds[skill]) return profileIds[skill];
+  let profileId;
   try {
-    const brf = await (await fetch('longboard.brf')).text();
+    // Only penalise descents past where the route turns yellow for this skill, so the router
+    // doesn't dodge sweet-spot hills in favour of flat roads.
+    const cutoff = (70 * settings.maxDown).toFixed(1);
+    const brf = (await (await fetch('longboard.brf')).text()).replace(/assign downhillcutoff [\d.]+/, `assign downhillcutoff ${cutoff}`);
     const res = await fetchWithTimeout(`${BROUTER}/profile`, { method: 'POST', body: brf }, 15000);
     const j = await res.json();
     if (j.error || !j.profileid) throw new Error(j.error);
@@ -16,7 +21,7 @@ async function ensureProfile() {
     console.warn('Custom profile upload failed, using trekking', e);
     profileId = 'trekking';
   }
-  return profileId;
+  return (profileIds[skill] = profileId);
 }
 
 /** Fetch one route. from/to/via are [lat, lon]. opts.profile overrides the longboard profile (e.g. walking). */
@@ -28,7 +33,7 @@ export async function fetchRoute(from, to, alt = 0, { via = [], profile } = {}, 
   const text = await res.text();
   if (!text.trim().startsWith('{')) {
     if (!retried && !profile && /profile/i.test(text) && prof !== 'trekking') {
-      profileId = null; // server dropped our uploaded profile; re-upload once
+      delete profileIds[settings.skill]; // server dropped our uploaded profile; re-upload once
       return fetchRoute(from, to, alt, { via }, true);
     }
     throw new Error(text.trim().slice(0, 160) || `Routing failed (${res.status})`);
@@ -134,16 +139,36 @@ export function analyze(route, maxDown = settings.maxDown) {
     frac[gradeClass(g, maxDown)]++;
   }
   for (const k in frac) frac[k] /= n - 1;
+  const push = coast(grades, maxDown);
   const km = Math.max(dist / 1000, 0.2);
-  let score = 60 + 40 * frac.sweet + 10 * frac.flat - 30 * frac.mildup - 80 * frac.climb
-    - 100 * frac.steep - 20 * frac.fast - 0.5 * (climb / km) - 25 * route.busyFrac - 20 * route.roughFrac;
+  // Ideal ride: mostly green, a little yellow, almost no blue, no kicking. Flat is work, so it costs points.
+  let score = 55 + 45 * frac.sweet + 10 * Math.min(frac.fast, 0.15) - 30 * Math.max(0, frac.fast - 0.15)
+    - 15 * frac.flat - 60 * push - 40 * frac.mildup - 80 * frac.climb - 100 * frac.steep
+    - 0.5 * (climb / km) - 25 * route.busyFrac - 20 * route.roughFrac;
   score = Math.round(clamp(score, 0, 100));
   const flags = [];
   if (frac.steep > 0) flags.push('⚠ steep descent');
+  if (push < 0.02) flags.push('🛹 no kicking'); else if (push > 0.08) flags.push(`kick ~${Math.round(push * 100)}% of the way`);
   if (frac.climb > 0.12) flags.push('lots of pushing');
   if (route.busyFrac > 0.2) flags.push('busy roads');
   if (route.roughFrac > 0.1) flags.push('rough surface');
-  return { n, lat, lon, ele, grades, frac, climb, descent, maxDownG, maxUpG, score, label: labelFor(score), flags, dist };
+  return { n, lat, lon, ele, grades, frac, push, climb, descent, maxDownG, maxUpG, score, label: labelFor(score), flags, dist };
+}
+
+/**
+ * Coast simulation: rolls a rider down the profile with gravity, rolling resistance and air drag,
+ * carrying momentum through short flats. Returns the share of distance where speed drops below a
+ * walking-pace cruise and you'd have to kick. Speed is capped (rider scrubs speed) by skill level.
+ */
+function coast(grades, maxDown) {
+  const G = 9.81, CRR = 0.015, DRAG = 0.0035, V_MIN = 2.5, vMax = 3 + 85 * maxDown; // m/s
+  let v2 = 16, kicks = 0; // start after one push-off (~4 m/s)
+  for (const g of grades) {
+    v2 += 2 * STEP * (-G * g - G * CRR - DRAG * v2);
+    if (v2 < V_MIN * V_MIN) { kicks++; v2 = V_MIN * V_MIN; }
+    v2 = Math.min(v2, vMax * vMax);
+  }
+  return grades.length ? kicks / grades.length : 0;
 }
 
 /** Grade at a distance along the analysed route. */

@@ -255,7 +255,7 @@ function cardHTML(o, i) {
     <div class="score ${scoreClass(a.score)}">${a.score}</div>
     <div class="card-body">
       <b>${esc(o.title)}</b> <span class="muted">· ${a.label}</span>
-      <div class="meta">${fmtDist(a.dist)} · ↑${fmtElev(a.climb)} · ↓${fmtElev(a.descent)} · steepest ${fmtGrade(a.maxDownG)}</div>
+      <div class="meta">${fmtDist(a.dist)} · ↑${fmtElev(a.climb)} · ↓${fmtElev(a.descent)} · steepest ${fmtGrade(a.maxDownG)} · ${Math.round((1 - a.push) * 100)}% kick-free</div>
       ${compBar(a)}
       ${a.pave && a.pave.coverage > 0.2 ? `<div class="meta">Pavement: <span style="color:${GRADE_COLOR.A}">${Math.round(a.pave.good * 100)}% A/B</span> · <span style="color:${GRADE_COLOR.D}">${Math.round(a.pave.poor * 100)}% D/F</span></div>` : ''}
       ${o.walk ? `<div class="meta walkback">🚶 Walk back to start: <b>${fmtDist(o.walk.a.dist)}</b> · ↑${fmtElev(o.walk.a.climb)} · steepest ${fmtGrade(o.walk.a.maxUpG)}</div>` : ''}
@@ -307,7 +307,7 @@ function selectOption(i, fit = true) {
   drawRoutes();
   document.querySelectorAll('.card').forEach((c) => c.classList.toggle('sel', +c.dataset.i === i));
   $('#plan-result').hidden = false;
-  $('#plan-summary').innerHTML = `${esc(o.title)} — <b>${o.a.label}</b>, ${(o.a.frac.sweet * 100).toFixed(0)}% sweet-spot downhill`;
+  $('#plan-summary').innerHTML = `${esc(o.title)} — <b>${o.a.label}</b>, ${(o.a.frac.sweet * 100).toFixed(0)}% sweet-spot downhill, ${Math.round((1 - o.a.push) * 100)}% kick-free`;
   drawProfile($('#profile'), o.a);
   if (fit) map.fitBounds(L.latLngBounds(Array.from({ length: o.a.n }, (_, k) => [o.a.lat[k], o.a.lon[k]])), { padding: [40, 40] });
 }
