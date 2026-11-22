@@ -94,12 +94,12 @@ export function drawRose(canvas, rose, heading = null) {
 }
 
 /** Best gentle-downhill direction from a rose, or null if it's all flat/up. */
-export function bestDownhill(rose, maxDown) {
+export function bestDownhill(rose, maxDown, ideal = 0.03) {
   let best = null;
   rose.dirs.forEach((b, i) => {
     const g = rose.grades[i];
     if (g >= -0.008 || g < -maxDown) return;
-    const s = -Math.abs(g + Math.min(0.03, maxDown * 0.45));
+    const s = -Math.abs(g + ideal);
     if (!best || s > best.s) best = { s, bearing: b, grade: g, label: compass(b) };
   });
   return best;

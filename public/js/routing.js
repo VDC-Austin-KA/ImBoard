@@ -19,17 +19,17 @@ async function ensureProfile() {
   return profileId;
 }
 
-/** Fetch one route. from/to are [lat, lon]. Returns parsed route or throws. */
-export async function fetchRoute(from, to, alt = 0, retried = false) {
-  const prof = await ensureProfile();
-  const url = `${BROUTER}?lonlats=${from[1].toFixed(6)},${from[0].toFixed(6)}|${to[1].toFixed(6)},${to[0].toFixed(6)}` +
-    `&profile=${prof}&alternativeidx=${alt}&format=geojson&timode=2`;
+/** Fetch one route. from/to/via are [lat, lon]. opts.profile overrides the longboard profile (e.g. walking). */
+export async function fetchRoute(from, to, alt = 0, { via = [], profile } = {}, retried = false) {
+  const prof = profile || (await ensureProfile());
+  const ll = [from, ...via, to].map((p) => `${p[1].toFixed(6)},${p[0].toFixed(6)}`).join('|');
+  const url = `${BROUTER}?lonlats=${ll}&profile=${prof}&alternativeidx=${alt}&format=geojson&timode=2`;
   const res = await fetchWithTimeout(url, {}, 30000);
   const text = await res.text();
   if (!text.trim().startsWith('{')) {
-    if (!retried && /profile/i.test(text) && prof !== 'trekking') {
+    if (!retried && !profile && /profile/i.test(text) && prof !== 'trekking') {
       profileId = null; // server dropped our uploaded profile; re-upload once
-      return fetchRoute(from, to, alt, true);
+      return fetchRoute(from, to, alt, { via }, true);
     }
     throw new Error(text.trim().slice(0, 160) || `Routing failed (${res.status})`);
   }

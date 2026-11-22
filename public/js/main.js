@@ -1,10 +1,10 @@
-import { settings, saveSettings, fmtDist, fmtElev, fmtGrade, fmtSpeed, esc, toast, compass, googleMapsDirections } from './util.js';
-import { createSteepnessLayer, createContourLayer, createTintLayer, sampleGrid, findExtrema, slopeRose, profileAhead } from './terrain.js';
+import { settings, saveSettings, setSkill, SKILLS, fmtDist, fmtElev, fmtGrade, fmtSpeed, esc, toast, compass, googleMapsDirections } from './util.js';
+import { createSteepnessLayer, createContourLayer, createTintLayer, sampleGrid, findExtrema, slopeRose, profileAhead, elevationAt } from './terrain.js';
 import { createPavementLayers, PAVEMENT_LAYERS, scorePavement, GRADE_COLOR } from './pavement.js';
 import { fetchAlternatives, fetchRoute, analyze, gradeClass, CLASS_COLOR, CLASS_LABEL, STEP } from './routing.js';
 import { drawProfile, profileDistAt, drawRose, drawAhead, bestDownhill } from './charts.js';
 import { findParks } from './parks.js';
-import { suggestCruises, findRunsInArea } from './cruise.js';
+import { suggestCruises, findRunsInArea, findLoops, highPoints } from './cruise.js';
 import { Ride } from './nav.js';
 import { unlockAudio, play, describe } from './cues.js';
 import { openAR, closeAR, heading as compassHeading, requestOrientationPermission } from './ar.js';
@@ -258,6 +258,7 @@ function cardHTML(o, i) {
       <div class="meta">${fmtDist(a.dist)} · ↑${fmtElev(a.climb)} · ↓${fmtElev(a.descent)} · steepest ${fmtGrade(a.maxDownG)}</div>
       ${compBar(a)}
       ${a.pave && a.pave.coverage > 0.2 ? `<div class="meta">Pavement: <span style="color:${GRADE_COLOR.A}">${Math.round(a.pave.good * 100)}% A/B</span> · <span style="color:${GRADE_COLOR.D}">${Math.round(a.pave.poor * 100)}% D/F</span></div>` : ''}
+      ${o.walk ? `<div class="meta walkback">🚶 Walk back to start: <b>${fmtDist(o.walk.a.dist)}</b> · ↑${fmtElev(o.walk.a.climb)} · steepest ${fmtGrade(o.walk.a.maxUpG)}</div>` : ''}
       ${a.flags.length ? `<div class="flags">${a.flags.map(esc).join(' · ')}</div>` : ''}
     </div></div>`;
 }
@@ -281,6 +282,10 @@ function drawRoutes() {
       L.polyline(all.slice(start, i + 1), { color: CLASS_COLOR[c], weight: 6 }).addTo(routeLayer);
       start = i;
     }
+  }
+  if (o.walk) {
+    L.polyline(o.walk.route.pts.map((p) => [p.lat, p.lon]), { color: '#ffd740', weight: 4, dashArray: '1 8', lineCap: 'round' })
+      .bindTooltip(`Walk back ${fmtDist(o.walk.a.dist)} · ↑${fmtElev(o.walk.a.climb)}`).addTo(routeLayer);
   }
   o.route.cues.forEach((c) => L.circleMarker([c.lat, c.lon], { radius: 4, color: '#fff', weight: 2, fillColor: '#102027', fillOpacity: 1 })
     .bindTooltip(describe(c)).addTo(routeLayer));
@@ -353,7 +358,21 @@ async function runFinder(mode) {
   try {
     const len = +$('#cruise-len').value;
     let res;
-    if (mode === 'view') {
+    if ($('#cruise-loop').checked) {
+      const walkM = +$('#cruise-walk').value;
+      let origins;
+      if (mode === 'view') {
+        if (map.getZoom() < 12) throw new Error('Zoom in a little (to a neighbourhood or two) so the search stays focused');
+        const bb = map.getBounds();
+        origins = await highPoints({ s: bb.getSouth(), w: bb.getWest(), n: bb.getNorth(), e: bb.getEast() }, 3, 500);
+      } else {
+        const e = await elevationAt(f, 14);
+        if (e == null) throw new Error('Elevation data unavailable here');
+        origins = [{ p: f, e }];
+      }
+      res = await findLoops(origins, len, walkM, progress);
+      if (mode === 'view') res.forEach((o) => (o.area = true));
+    } else if (mode === 'view') {
       if (map.getZoom() < 12) throw new Error('Zoom in a little (to a neighbourhood or two) so the search stays focused');
       const bb = map.getBounds();
       res = await findRunsInArea({ s: bb.getSouth(), w: bb.getWest(), n: bb.getNorth(), e: bb.getEast() }, len, parks, progress);
@@ -442,7 +461,7 @@ async function refreshHere(p = me) {
     lastRose = rose;
     const hdg = ride?.gpsHeading ?? compassHeading();
     drawRose($('#rose'), rose, hdg);
-    const best = bestDownhill(rose, settings.maxDown);
+    const best = bestDownhill(rose, settings.maxDown, SKILLS[settings.skill].ideal);
     const steepest = rose.grades.reduce((m, g) => Math.min(m, g), 0);
     $('#here-stats').innerHTML = rose.elev == null ? 'Elevation data unavailable here.' :
       `<div><span class="big">${fmtElev(rose.elev)}</span> elevation</div>
@@ -506,7 +525,7 @@ function beginRide(o) {
     },
     onArrive: () => {
       if (o.next) { toast('At the start — enjoy the run! 🛹', 5000); drawRoutes(); beginRide(o.next); return; }
-      toast('Arrived! 🛹', 5000);
+      toast(o.walk ? `Run done! 🛹 Walk back up: ${fmtDist(o.walk.a.dist)} (yellow dots on the map)` : 'Arrived! 🛹', 7000);
       stopRide();
     },
   });
@@ -545,7 +564,7 @@ function arTarget() {
     const label = hud.offRoute ? 'Head back to the route' : hud.next ? `${describe(hud.next)} in ${fmtDist(hud.nextDist)}` : 'Straight on';
     return { bearing: ride.targetBearing(), gpsHeading: ride.speed > 2 ? ride.gpsHeading : null, label };
   }
-  const best = lastRose && bestDownhill(lastRose, settings.maxDown);
+  const best = lastRose && bestDownhill(lastRose, settings.maxDown, SKILLS[settings.skill].ideal);
   return best ? { bearing: best.bearing, label: `Gentle downhill ${best.label} (${fmtGrade(best.grade)})` } : { label: 'Plan a route to get turn guidance' };
 }
 function arInfo() {
@@ -559,18 +578,34 @@ $('#ar-close').onclick = closeAR;
 
 // ---------- settings ----------
 $('#set-units').value = settings.units;
-$('#set-maxdown').value = String(settings.maxDown);
 $('#set-voice').checked = settings.voice;
 $('#set-vibrate').checked = settings.vibrate;
-$('#settings-form').onchange = () => {
+document.querySelectorAll('.skill-select').forEach((sel) => {
+  sel.innerHTML = Object.entries(SKILLS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+  sel.value = settings.skill;
+  sel.onchange = () => {
+    setSkill(sel.value);
+    document.querySelectorAll('.skill-select').forEach((x) => (x.value = settings.skill));
+    saveSettings();
+    reanalyze();
+  };
+});
+$('#cruise-loop').onchange = () => ($('#loop-walk-row').hidden = !$('#cruise-loop').checked);
+function reanalyze() {
+  options.forEach((o) => (o.a = analyze(o.route)));
+  scorePavement(options).finally(() => {
+    options.forEach((o) => { if (o.walkPenalty) o.a.score = Math.max(0, o.a.score - o.walkPenalty); });
+    if (selected >= 0) { drawRoutes(); renderOptions($('#route-list')); selectOption(selected, false); }
+  });
+}
+$('#settings-form').onchange = (e) => {
+  if (e.target.classList.contains('skill-select')) return;
   settings.units = $('#set-units').value;
-  settings.maxDown = +$('#set-maxdown').value;
   settings.voice = $('#set-voice').checked;
   settings.vibrate = $('#set-vibrate').checked;
   saveSettings();
-  options.forEach((o) => (o.a = analyze(o.route)));
   contours.redraw();
-  scorePavement(options).finally(() => { if (selected >= 0) { drawRoutes(); renderOptions($('#route-list')); selectOption(selected, false); } });
+  reanalyze();
 };
 if (!navigator.vibrate) $('#vibe-note').hidden = false;
 $('#cue-tests').onclick = (e) => {
