@@ -22,6 +22,20 @@
     <ul id="search-results" hidden></ul>
   </form>
 
+  <button id="gps-status" class="gps gps-wait" hidden>📍 Finding you…</button>
+  <div id="gps-help" class="modal" hidden>
+    <div class="modal-card">
+      <h3>Can't get your location</h3>
+      <p id="gps-help-text"></p>
+      <p class="muted small">Tip: GPS works best outdoors. The first fix can take 10–30 s.</p>
+      <div class="row wrap">
+        <button id="gps-retry" class="primary">Try again</button>
+        <button id="gps-manual">Set it on the map</button>
+        <button id="gps-close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fabs">
     <button id="btn-locate" class="fab" title="My location" aria-label="My location">◎</button>
     <button id="btn-ar" class="fab" title="AR heads-up view" aria-label="AR view">AR</button>

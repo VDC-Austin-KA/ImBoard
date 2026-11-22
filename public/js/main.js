@@ -91,14 +91,66 @@ function onPosition(pos) {
     refreshHere();
   }
 }
-if ('geolocation' in navigator) {
-  navigator.geolocation.watchPosition(onPosition, (e) => e.code === 1 && toast('Location permission denied — tap the map to set a start point'), { enableHighAccuracy: true, maximumAge: 2000 });
-} else {
-  toast('Geolocation not supported on this device');
+// GPS status + recovery: a visible chip, a quick coarse fix first, retry on tap, and platform help.
+let watchId = null, gotFix = false, manual = false;
+function gpsStatus(state, text) {
+  const el = $('#gps-status');
+  el.className = `gps gps-${state}`;
+  el.textContent = text;
+  el.hidden = false;
 }
+function onFix(pos) {
+  gotFix = true;
+  manual = false;
+  const acc = pos.coords.accuracy;
+  gpsStatus(acc <= 30 ? 'ok' : 'weak', `📍 GPS ±${fmtDist(acc)}`);
+  onPosition(pos);
+}
+function onGeoError(e) {
+  if (manual) return;
+  if (e.code === 1) {
+    gpsStatus('bad', '📍 Location blocked — tap for help');
+    showGpsHelp(true);
+  } else if (!gotFix) {
+    gpsStatus('bad', e.code === 3 ? '📍 No GPS fix yet — tap to retry' : '📍 Location unavailable — tap to retry');
+  }
+}
+function startGps() {
+  if (!('geolocation' in navigator) || !window.isSecureContext) {
+    gpsStatus('bad', '📍 Location not supported here — tap for help');
+    return;
+  }
+  if (!gotFix) gpsStatus('wait', '📍 Finding you…');
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  // a fast coarse (Wi-Fi/cell) fix so the map isn't stuck waiting on satellites
+  navigator.geolocation.getCurrentPosition((p) => { if (!gotFix) onFix(p); }, () => {}, { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 });
+  watchId = navigator.geolocation.watchPosition(onFix, onGeoError, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+}
+function showGpsHelp(denied) {
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua);
+  const inApp = /FBAN|FBAV|Instagram|Line\/|Snapchat|GSA\/|; wv\)/.test(ua);
+  const steps = inApp ? 'You seem to be in an in-app browser, which often blocks location. Open board.ackerworks.com in Safari or Chrome.'
+    : ios ? 'iPhone: Settings → Privacy & Security → Location Services → On, then Safari Websites (or Chrome) → “While Using the App” with Precise Location on. Then reload and tap Allow.'
+    : android ? 'Android: tap the icon left of the address bar → Permissions → Location → Allow. Also make sure Location is on in quick settings (and Google Location Accuracy for faster fixes).'
+    : 'Click the icon left of the address bar → Site settings → Location → Allow, then reload. Make sure your OS allows the browser to use location.';
+  $('#gps-help-text').textContent = `${denied ? 'Location access is blocked for this site. ' : ''}${steps}`;
+  $('#gps-help').hidden = false;
+}
+function setManualLocation(p) {
+  manual = true;
+  onPosition({ coords: { latitude: p[0], longitude: p[1], accuracy: 15, speed: null, heading: null }, timestamp: Date.now() });
+  gpsStatus('weak', '📍 Set on map (tap for GPS)');
+}
+$('#gps-status').onclick = () => (gotFix && !manual ? map.setView(me, Math.max(map.getZoom(), 16)) : (startGps(), showGpsHelp(false)));
+$('#gps-retry').onclick = () => { $('#gps-help').hidden = true; startGps(); };
+$('#gps-manual').onclick = () => { $('#gps-help').hidden = true; toast('Tap the map where you are, then choose “I’m here”', 5000); };
+$('#gps-close').onclick = () => ($('#gps-help').hidden = true);
+startGps();
 $('#btn-locate').onclick = () => {
   followMe = true;
-  me ? map.setView(me, Math.max(map.getZoom(), 16)) : toast('Waiting for GPS…');
+  if (me) map.setView(me, Math.max(map.getZoom(), 16));
+  if (!gotFix) startGps(); // a tap is a user gesture: some browsers only prompt then
 };
 map.on('dragstart', () => { if (ride) followMe = false; });
 
@@ -146,7 +198,7 @@ map.on('click', (e) => {
   const p = [e.latlng.lat, e.latlng.lng];
   const div = document.createElement('div');
   div.className = 'popup-actions';
-  div.innerHTML = '<button data-a="to">Route here</button><button data-a="from">Start here</button><button data-a="here">Terrain here</button>';
+  div.innerHTML = '<button data-a="to">Route here</button><button data-a="from">Start here</button><button data-a="here">Terrain here</button><button data-a="me">I’m here</button>';
   const pop = L.popup().setLatLng(e.latlng).setContent(div).openOn(map);
   div.onclick = (ev) => {
     const a = ev.target.dataset.a;
@@ -155,6 +207,7 @@ map.on('click', (e) => {
     if (a === 'to') { setTo(p); planRoutes(); }
     if (a === 'from') { setFrom(p); if (to) planRoutes(); }
     if (a === 'here') { showTab('here'); refreshHere(p); }
+    if (a === 'me') setManualLocation(p);
   };
 });
 
