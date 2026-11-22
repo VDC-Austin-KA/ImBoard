@@ -22,6 +22,20 @@
     <ul id="search-results" hidden></ul>
   </form>
 
+  <button id="gps-status" class="gps gps-wait" hidden>📍 Finding you…</button>
+  <div id="gps-help" class="modal" hidden>
+    <div class="modal-card">
+      <h3>Can't get your location</h3>
+      <p id="gps-help-text"></p>
+      <p class="muted small">Tip: GPS works best outdoors. The first fix can take 10–30 s.</p>
+      <div class="row wrap">
+        <button id="gps-retry" class="primary">Try again</button>
+        <button id="gps-manual">Set it on the map</button>
+        <button id="gps-close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="fabs">
     <button id="btn-locate" class="fab" title="My location" aria-label="My location">◎</button>
     <button id="btn-ar" class="fab" title="AR heads-up view" aria-label="AR view">AR</button>
@@ -57,6 +71,7 @@
           <span style="--c:#e74c3c">Too steep ↓</span><span style="--c:#9b59b6">Push ↑</span>
         </div>
         <button id="btn-ride" class="primary wide">▶ Start ride (eyes-free cues)</button>
+        <button class="gmaps wide">🧭 Directions to start (Google Maps)</button>
       </div>
     </div>
 
@@ -73,11 +88,12 @@
         <button id="btn-area" class="primary finder">Best runs in this map view</button>
         <button id="btn-cruise" class="finder">From me / point A</button>
       </div>
-      <div id="cruise-list"></div>
-      <div id="cruise-hint" class="row" hidden>
+      <div id="cruise-hint" class="row wrap" hidden>
+        <button class="gmaps primary wide">🧭 Directions to run start (Google Maps)</button>
         <button id="btn-cruise-ride" class="primary">▶ Ride selected</button>
         <button id="btn-cruise-plan">Open in planner</button>
       </div>
+      <div id="cruise-list"></div>
     </div>
 
     <div id="panel-parks" class="panel" hidden>
