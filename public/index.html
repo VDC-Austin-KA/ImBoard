@@ -71,6 +71,7 @@
           <span style="--c:#e74c3c">Too steep ↓</span><span style="--c:#9b59b6">Push ↑</span>
         </div>
         <button id="btn-ride" class="primary wide">▶ Start ride (eyes-free cues)</button>
+        <button class="gmaps wide">🧭 Directions to start (Google Maps)</button>
       </div>
     </div>
 
@@ -87,11 +88,12 @@
         <button id="btn-area" class="primary finder">Best runs in this map view</button>
         <button id="btn-cruise" class="finder">From me / point A</button>
       </div>
-      <div id="cruise-list"></div>
-      <div id="cruise-hint" class="row" hidden>
+      <div id="cruise-hint" class="row wrap" hidden>
+        <button class="gmaps primary wide">🧭 Directions to run start (Google Maps)</button>
         <button id="btn-cruise-ride" class="primary">▶ Ride selected</button>
         <button id="btn-cruise-plan">Open in planner</button>
       </div>
+      <div id="cruise-list"></div>
     </div>
 
     <div id="panel-parks" class="panel" hidden>

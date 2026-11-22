@@ -1,4 +1,4 @@
-import { settings, saveSettings, fmtDist, fmtElev, fmtGrade, fmtSpeed, esc, toast, compass } from './util.js';
+import { settings, saveSettings, fmtDist, fmtElev, fmtGrade, fmtSpeed, esc, toast, compass, googleMapsDirections } from './util.js';
 import { createSteepnessLayer, createContourLayer, createTintLayer, sampleGrid, findExtrema, slopeRose, profileAhead } from './terrain.js';
 import { createPavementLayers, PAVEMENT_LAYERS, scorePavement, GRADE_COLOR } from './pavement.js';
 import { fetchAlternatives, fetchRoute, analyze, gradeClass, CLASS_COLOR, CLASS_LABEL, STEP } from './routing.js';
@@ -51,7 +51,7 @@ async function refreshTerrainView() {
   if (!map.hasLayer(extremaLayer)) return;
   const { tops, bottoms } = findExtrema(g, z >= 15 ? 3 : 5, 10);
   const mk = (x, cls, sym, what) => L.marker(x.p, { icon: L.divIcon({ className: '', html: `<div class="${cls}">${sym}<span>${fmtElev(x.e)}</span></div>`, iconSize: [60, 22], iconAnchor: [9, 11] }) })
-    .bindPopup(`<b>${what}</b><br>${fmtElev(x.e)} · ${fmtElev(x.rel)} of relief nearby<br><button class="popup-from" data-lat="${x.p[0]}" data-lon="${x.p[1]}">Start a run here</button>`).addTo(extremaLayer);
+    .bindPopup(`<b>${what}</b><br>${fmtElev(x.e)} · ${fmtElev(x.rel)} of relief nearby<br><button class="popup-from" data-lat="${x.p[0]}" data-lon="${x.p[1]}">Start a run here</button><br><a href="${googleMapsDirections(x.p)}" target="_blank" rel="noopener">🧭 Directions (Google Maps)</a>`).addTo(extremaLayer);
   tops.forEach((t) => mk(t, 'peak', '▲', 'Hilltop'));
   bottoms.forEach((b) => mk(b, 'valley', '▼', 'Low point'));
 }
@@ -376,6 +376,13 @@ async function runFinder(mode) {
 }
 $('#btn-cruise').onclick = () => runFinder('me');
 $('#btn-area').onclick = () => runFinder('view');
+// open Google Maps with directions to the selected run's first point
+document.querySelectorAll('.gmaps').forEach((b) => (b.onclick = () => {
+  const o = options[selected];
+  if (!o) return toast('Pick a run first');
+  window.open(googleMapsDirections([o.a.lat[0], o.a.lon[0]]), '_blank', 'noopener');
+}));
+
 $('#btn-cruise-plan').onclick = () => {
   const o = options[selected];
   if (!o) return;

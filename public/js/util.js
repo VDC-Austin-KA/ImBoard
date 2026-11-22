@@ -60,6 +60,10 @@ export async function fetchWithTimeout(url, opts = {}, ms = 20000) {
   }
 }
 
+/** Google Maps directions from the user's current location to a point (opens the app on phones). */
+export const googleMapsDirections = ([lat, lon]) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lon.toFixed(6)}`;
+
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function esc(s) {
