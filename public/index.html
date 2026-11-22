@@ -84,6 +84,15 @@
           <option value="7000">Long (~7 km / 4.3 mi)</option>
         </select>
       </div>
+      <div class="row"><select id="cruise-skill" class="skill-select" aria-label="Skill level"></select></div>
+      <label class="check loop-opt"><input type="checkbox" id="cruise-loop"> 🔁 Loop: finish near the start (short, steep walk back to the car)</label>
+      <div id="loop-walk-row" class="row" hidden>
+        <select id="cruise-walk" aria-label="Walk back distance">
+          <option value="250">Walk back ≤ ~250 m (800 ft)</option>
+          <option value="450" selected>Walk back ≤ ~450 m (¼ mi)</option>
+          <option value="800">Walk back ≤ ~800 m (½ mi)</option>
+        </select>
+      </div>
       <div class="row">
         <button id="btn-area" class="primary finder">Best runs in this map view</button>
         <button id="btn-cruise" class="finder">From me / point A</button>
@@ -117,12 +126,7 @@
     <div id="panel-settings" class="panel" hidden>
       <form id="settings-form">
         <label>Units <select id="set-units"><option value="imperial">Miles / feet</option><option value="metric">Kilometres / metres</option></select></label>
-        <label>Downhill comfort
-          <select id="set-maxdown">
-            <option value="0.05">Gentle — max 5%</option>
-            <option value="0.07">Moderate — max 7%</option>
-            <option value="0.1">Confident — max 10%</option>
-          </select></label>
+        <label>Skill level <select id="set-skill" class="skill-select"></select></label>
         <label class="check"><input type="checkbox" id="set-vibrate"> Vibration cues</label>
         <label class="check"><input type="checkbox" id="set-voice"> Spoken prompts (in addition to chimes)</label>
       </form>

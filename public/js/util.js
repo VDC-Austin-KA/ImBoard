@@ -29,13 +29,27 @@ const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', '
 export const compass = (deg) => COMPASS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
 
 // ---- settings ----
+// Skill levels: steepest comfortable downhill (maxDown) and the sweet-spot average grade runs aim for (ideal).
+export const SKILLS = {
+  beginner: { label: 'Beginner — gentle, max 4%', maxDown: 0.04, ideal: 0.015 },
+  intermediate: { label: 'Intermediate — max 7%', maxDown: 0.07, ideal: 0.03 },
+  advanced: { label: 'Advanced — faster, max 10%', maxDown: 0.1, ideal: 0.05 },
+  expert: { label: 'Expert — steep, max 14%', maxDown: 0.14, ideal: 0.07 },
+};
 const DEFAULTS = {
   units: /^en-(US|LR|MM)/.test(navigator.language) ? 'imperial' : 'metric',
-  maxDown: 0.07, // steepest comfortable downhill grade
+  skill: 'intermediate',
   voice: false,
   vibrate: true,
 };
 export const settings = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('imboard.settings') || '{}'));
+if (!SKILLS[settings.skill]) settings.skill = settings.maxDown <= 0.05 ? 'beginner' : settings.maxDown >= 0.1 ? 'advanced' : 'intermediate';
+/** Apply a skill level; settings.maxDown is what grading and steep warnings read. */
+export function setSkill(k) {
+  settings.skill = SKILLS[k] ? k : 'intermediate';
+  settings.maxDown = SKILLS[settings.skill].maxDown;
+}
+setSkill(settings.skill);
 export const saveSettings = () => localStorage.setItem('imboard.settings', JSON.stringify(settings));
 
 // ---- formatting ----

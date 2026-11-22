@@ -1,5 +1,5 @@
 // App-shell cache for offline use; map tiles and APIs pass through.
-const CACHE = 'imboard-v4';
+const CACHE = 'imboard-v5';
 const SHELL = ['./', 'index.html', 'styles.css', 'longboard.brf', 'icon.svg', 'manifest.webmanifest',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   ...['main', 'util', 'terrain', 'routing', 'charts', 'cues', 'nav', 'ar', 'parks', 'cruise', 'pavement'].map((m) => `js/${m}.js`)];

@@ -17,6 +17,12 @@ A mobile-first map app (installable PWA) for planning smooth, low-effort longboa
 - **Area route finder** — "Best runs in this map view" starts from hilltops / high ground anywhere in the view
   and finds the best downhill runs of the chosen length (short / medium / long). If you're not at the start,
   ride mode first guides you there.
+- **Skill levels** — Beginner (≤ 4 %), Intermediate (≤ 7 %), Advanced (≤ 10 %), Expert (≤ 14 %) set the target
+  average grade runs aim for, how routes are graded, and when steep-section warnings fire.
+- **Loop runs (park & ride)** — finish near the start: the finder picks an end point within walking distance and
+  well below the start (a steep slope), routes a longer, gentle ride out via a mid-elevation point and back down to it,
+  then routes the walk back up with a hiking profile (shown as yellow dots, with distance and climb).
+- **Directions to start** — opens Google Maps directions to the selected run's first point.
 - **Austin pavement intel** (City of Austin open ArcGIS data): street condition grades A–F, completed
   overlays ("fresh asphalt") and seal coats with dates, and the FY27 resurfacing plan. Routes inside Austin are
   re-scored by the pavement they ride on. Roads under construction come from OpenStreetMap everywhere.
