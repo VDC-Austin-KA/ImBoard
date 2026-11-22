@@ -32,8 +32,9 @@ export default {
     if (!FILES[path]) path = '/index.html';
     const f = FILES[path];
     const etag = '"' + f.etag + '"';
-    const revalidate = path.endsWith('.html') || path === '/sw.js';
-    const headers = { ...HEADERS, 'Content-Type': f.type, ETag: etag, 'Cache-Control': revalidate ? 'no-cache' : 'public, max-age=3600' };
+    // app code must always match the page it was loaded with: revalidate (cheap 304s via ETag); only vendor/images cache long
+    const immutable = path.startsWith('/vendor/') || path.endsWith('.png');
+    const headers = { ...HEADERS, 'Content-Type': f.type, ETag: etag, 'Cache-Control': immutable ? 'public, max-age=86400' : 'no-cache' };
     if (req.headers.get('If-None-Match') === etag) return new Response(null, { status: 304, headers });
     if (!decoded.has(path)) decoded.set(path, Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0)));
     return new Response(req.method === 'HEAD' ? null : decoded.get(path), { headers });

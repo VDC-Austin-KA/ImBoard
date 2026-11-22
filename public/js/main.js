@@ -581,7 +581,6 @@ $('#set-units').value = settings.units;
 $('#set-voice').checked = settings.voice;
 $('#set-vibrate').checked = settings.vibrate;
 document.querySelectorAll('.skill-select').forEach((sel) => {
-  sel.innerHTML = Object.entries(SKILLS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   sel.value = settings.skill;
   sel.onchange = () => {
     setSkill(sel.value);
