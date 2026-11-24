@@ -34,20 +34,26 @@ async function routeAndRank(picks, onProgress, titleFor, post = async () => {}) 
   const out = [];
   for (const [i, c] of picks.entries()) {
     onProgress(`Checking route ${i + 1} of ${picks.length}…`);
-    try {
-      const route = await fetchRoute(c.from, c.p, 0, { via: c.via || [] });
-      if (c.via && route.dist > c.maxDist) continue; // via point forced a huge detour
-      out.push({ route, a: analyze(route), from: c.from, to: c.p, cand: c });
-    } catch (e) {
-      console.warn('candidate route failed', e);
+    // Loops keep their via point; plain runs also try one alternative so the downhill-first score has a choice.
+    for (const alt of c.via ? [0] : [0, 1]) {
+      try {
+        const route = await fetchRoute(c.from, c.p, alt, { via: c.via || [] });
+        if (c.via && route.dist > c.maxDist) continue; // via point forced a huge detour
+        if (out.some((o) => o.cand === c && Math.abs(o.route.dist - route.dist) < 15)) continue; // duplicate
+        out.push({ route, a: analyze(route), from: c.from, to: c.p, cand: c });
+      } catch (e) {
+        console.warn('candidate route failed', e);
+      }
+      await sleep(250); // be gentle with the public routing server
     }
-    await sleep(250); // be gentle with the public routing server
   }
   onProgress('Checking pavement…');
   await scorePavement(out);
   await post(out);
   out.forEach((o) => (o.title = titleFor(o)));
-  return out.sort((x, y) => y.a.score - x.a.score).slice(0, 3);
+  return out.sort((x, y) => y.a.score - x.a.score)
+    .filter((o, i, all) => all.findIndex((x) => x.cand === o.cand) === i) // best variant per run only
+    .slice(0, 3);
 }
 
 const runName = (o) => (o.a.descent > o.a.climb * 1.5 ? 'Downhill' : 'Rolling');

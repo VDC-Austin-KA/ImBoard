@@ -6,8 +6,10 @@ A mobile-first map app (installable PWA) for planning smooth, low-effort longboa
 
 ## Features
 - **Longboard-aware routing** — [BRouter](https://brouter.de) with a custom profile (`public/longboard.brf`) that
-  penalises climbing, steep descents, rough/unpaved surfaces and busy roads. Up to 3 alternatives are fetched
-  and ranked by a **ride score** (share of "sweet-spot" 1–5 % downhill vs. pushing and too-steep sections).
+  penalises climbing, descents steeper than the rider's skill level, rough/unpaved surfaces and busy roads.
+  Alternatives are fetched and ranked by a **downhill-first ride score**: green sweet-spot downhill earns the most,
+  a little yellow (fast) is fine, flat (blue) costs points, and a **coast simulation** (gravity, rolling resistance,
+  drag, momentum carried through short flats) measures how much of the ride you'd have to kick. Cards show "% kick-free".
 - **Cruise suggestions** — scouts terrain in 12 directions (and nearby skateparks) for destinations with a gentle
   average downhill, routes the best candidates and shows the top 3.
 - **Topography** — Topographic base map, Esri hillshade, and a client-side **terrain steepness** overlay
