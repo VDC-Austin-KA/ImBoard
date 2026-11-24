@@ -31,10 +31,11 @@ export const compass = (deg) => COMPASS[Math.round(((deg % 360) + 360) % 360 / 2
 // ---- settings ----
 // Skill levels: steepest comfortable downhill (maxDown) and the sweet-spot average grade runs aim for (ideal).
 export const SKILLS = {
-  beginner: { label: 'Beginner — gentle, max 4%', maxDown: 0.04, ideal: 0.015 },
-  intermediate: { label: 'Intermediate — max 7%', maxDown: 0.07, ideal: 0.03 },
-  advanced: { label: 'Advanced — faster, max 10%', maxDown: 0.1, ideal: 0.05 },
-  expert: { label: 'Expert — steep, max 14%', maxDown: 0.14, ideal: 0.07 },
+// (option labels live in index.html)
+  beginner: { maxDown: 0.04, ideal: 0.015 },
+  intermediate: { maxDown: 0.07, ideal: 0.03 },
+  advanced: { maxDown: 0.1, ideal: 0.05 },
+  expert: { maxDown: 0.14, ideal: 0.07 },
 };
 const DEFAULTS = {
   units: /^en-(US|LR|MM)/.test(navigator.language) ? 'imperial' : 'metric',
